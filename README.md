@@ -19,5 +19,7 @@ L'équipe
 
 À compléter par chaque personne: 1 ligne par personne, indiquant le nom et l'adresse mail de la personne (et vous pouvez supprimer cette ligne ensuite). L'objectif dans le premier TP est de provoquer des conflits d'édition, qui surviennent quand un même fichier est modifié au même endroit par plusieurs personnes.
 
+
 - Nino Lalanne-Tisné
+- Ahmed FAKHFAKH
 - et encore ?
