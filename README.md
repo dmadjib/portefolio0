@@ -22,4 +22,4 @@ L'équipe
 
 - Nino Lalanne-Tisné
 - Ahmed FAKHFAKH
-- et encore ?
+- lina El Arajna
