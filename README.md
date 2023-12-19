@@ -21,5 +21,5 @@ L'équipe
 
 
 - Nino Lalanne-Tisné
-- Ahmed FAKHFAKH
+- 
 - lina El Arajna
