@@ -3,8 +3,12 @@
 
 """Module de résolution du projet Poly#.
 """
+from utils.Drone import Drone
+from utils.Command import Command
+from utils.Map import Map
+from utils.Order import Order
+from utils.Product import Product
+from utils.Warehouse import Warehouse
 
 def solve(challenge):
-    """Résout un challenge donné.
-    """
-    return a_solution
+    pass
