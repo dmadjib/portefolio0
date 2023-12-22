@@ -50,7 +50,6 @@ def solve(challenge):
                 to_deliver = quantity if order.products[product] >= quantity else order.products[product]
                 drone.deliver(order, product, to_deliver, challenge.product_weights, solutions)
 
-    print(solutions)
     return solutions
 
 def score_solution():
