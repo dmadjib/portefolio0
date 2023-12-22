@@ -23,3 +23,4 @@ L'équipe
 - Nino Lalanne-Tisné
 - Ahmed FAKHFAKH
 - Lina El Arajna
+- Madjibaye Donatien
