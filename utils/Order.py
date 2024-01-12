@@ -5,3 +5,6 @@ class Order:
         self.location = (x, y)
         self.amount = len(products)
         self.products = {product_type: products.count(product_type) for product_type in set(products)}
+
+    def is_completed(self):
+        return all(q == 0 for q in self.products.values())

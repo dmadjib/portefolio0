@@ -22,20 +22,20 @@ def parse_challenge(filename: str) -> object:
         warehouse_count = int(f.readline())
         warehouse_list = []
 
-        for _ in range(warehouse_count):
+        for id in range(warehouse_count):
             x, y = [int(v) for v in f.readline().split()]
             warehouse_products = [int(v) for v in f.readline().split()]
-            warehouse_list.append(Warehouse(x, y, warehouse_products))
+            warehouse_list.append(Warehouse(id, x, y, warehouse_products))
 
         order_count = int(f.readline())
         order_list = []
 
-        for _ in range(order_count):
+        for id in range(order_count):
             x, y = [int(v) for v in f.readline().split()]
             # Useless count of products in order
             f.readline()
             order_product = [int(v) for v in f.readline().split()]
-            order_list.append(Order(x, y, order_product))
+            order_list.append(Order(id, x, y, order_product))
 
     challenge = Challenge(rows, columns, drone_count, deadline, max_load, product_weights, warehouse_list, order_list)
     
