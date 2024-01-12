@@ -9,6 +9,8 @@
 from polyparser import parse_challenge
 from polysolver import solve, score_solution, save_solution
 
+import copy
+
 if __name__ == "__main__":
     # On fournit ici un exemple permettant de passer un simple
     # argument (le fichier du challenge) en paramètre. N'hésitez pas à
@@ -28,9 +30,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     challenge = parse_challenge(args.challenge)
+    saved_challenge = copy.deepcopy(challenge)
     solution = solve(challenge)
     if args.output is not None:
         # Sauvegarder le fichier généré
         save_solution(args.output, solution)
         print(f"Solution saved in {args.output}")
-    print(f"Score: {score_solution(solution,challenge)}")
+    print(f"Score: {score_solution(solution, saved_challenge)}")
