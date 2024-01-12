@@ -20,8 +20,8 @@ def save_solution (file_name, tab_solution) :
 def solve(challenge):
     solutions = []
 
-    for drone in challenge.drones:
-        order = challenge.orders[drone.id]
+    for count, order in enumerate(challenge.orders):
+        drone = challenge.drones[count%len(challenge.drones)]
 
         warehouses = sorted(challenge.warehouses, key=lambda w:Drone.calculate_distance(w.location, drone.current_location))
 
@@ -34,9 +34,10 @@ def solve(challenge):
                 for product, amount in order.products.items():
                     if not drone.has_product_asked(product, amount) and warehouse.products[product] > 0:
                         to_load = amount if warehouse.products[product] >= amount else warehouse.products[product]
-                            
-                        if drone.can_load(product, to_load, challenge.product_weights):
-                            drone.load(warehouse, product, to_load, challenge.product_weights, solutions)
+
+                        for _ in range(to_load):
+                            if drone.can_load(product, 1, challenge.product_weights):
+                                drone.load(warehouse, product, 1, challenge.product_weights, solutions)
 
                 warehouse_count += 1
 
