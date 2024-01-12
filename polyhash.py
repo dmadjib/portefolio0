@@ -33,4 +33,4 @@ if __name__ == "__main__":
         # Sauvegarder le fichier généré
         save_solution(args.output, solution)
         print(f"Solution saved in {args.output}")
-    print(f"Score: {score_solution(solution)}")
+    print(f"Score: {score_solution(solution,challenge)}")

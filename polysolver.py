@@ -11,7 +11,6 @@ def save_solution (file_name, tab_solution) :
     
     with open(f'{file_name}.txt', 'w') as outfile :
         outfile.write(str(len(tab_solution)) + '\n')
-        outfile.write(str(len(tab_solution)) + '\n')
         for i in range(len(tab_solution)) : 
             for j in range(len(tab_solution[i])) :
                 outfile.write(str(tab_solution[i][j]) + ' ')
