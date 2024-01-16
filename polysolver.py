@@ -59,9 +59,8 @@ def solve(challenge):
                         # Recherche des drones les plus proches du warehouse
                         drones = sorted(challenge.drones, key=lambda d:Drone.calculate_distance(d.current_location, warehouse.location))
                         # Sélection des drones conservés pour ce warehouse
-                        chosen_drones = [drones[i] for i in range(nb_drones)]
-
-                        for drone in chosen_drones:
+                        for drone in [drones[i] for i in range(nb_drones)]:
+                            # Divise la charge entre les différents drones
                             if to_load <= challenge.max_payload:
                                 drone_load = to_load
                             else:
