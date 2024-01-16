@@ -20,6 +20,63 @@ def save_solution (file_name, tab_solution) :
 def solve(challenge):
     solutions = []
 
+    # Regrouper les commandes par adresses
+    locations = {}
+
+    # Pour chaque commande
+    for order in challenge.orders:
+        if order.location not in locations.keys():
+            locations[order.location] = [order]
+        else:
+            locations[order.location].append(order)
+
+    # Pour chaque adresse
+    for location, orders in locations.items():
+        # Liste des warhouses trié du plus proche au plus éloigné
+        warehouses = sorted(challenge.warehouses, key=lambda w:Drone.calculate_distance(w.location, location))
+        # Pour chaque commande
+        for order in orders:
+            # Pour chaque objet demandé
+            for product, amount in order.products.items():
+                # Items qu'il reste à trouver
+                remaining = amount
+                # Liste des warehouses à visiter pour prendre nos produits
+                to_visit = []
+                # Pour chaque warehouse tant que la quantité demandé n'est pas atteinte
+                # Par définition, si l'on parcours tous les warehouses, il y aura ce qui est demandé
+                for warehouse in warehouses:
+                    # Si tous les produits ont été trouvé
+                    if remaining == 0:
+                        break
+
+                    # Si le warehouse a des exemplaires du produit souhaité
+                    if warehouse.products[product] > 0:
+                        # On prend le nombre de produits nécessaire, ou tous si il n'y a pas tout ce qu'il faut
+                        to_load = remaining if warehouse.products[product] >= remaining else warehouse.products[product]
+                        remaining -= to_load
+                        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     for count, order in enumerate(challenge.orders):
         drone = challenge.drones[count%len(challenge.drones)]
 
