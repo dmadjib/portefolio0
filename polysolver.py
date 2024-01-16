@@ -38,10 +38,8 @@ def solve(challenge):
         for order in orders:
             # Pour chaque objet demandé
             for product, amount in order.products.items():
-                # Items qu'il reste à trouver
+                # Produits qu'il reste à trouver
                 remaining = amount
-                # Liste des warehouses à visiter pour prendre nos produits
-                to_visit = []
                 # Pour chaque warehouse tant que la quantité demandé n'est pas atteinte
                 # Par définition, si l'on parcours tous les warehouses, il y aura ce qui est demandé
                 for warehouse in warehouses:
@@ -54,61 +52,27 @@ def solve(challenge):
                         # On prend le nombre de produits nécessaire, ou tous si il n'y a pas tout ce qu'il faut
                         to_load = remaining if warehouse.products[product] >= remaining else warehouse.products[product]
                         remaining -= to_load
+                        warehouse.products[product] -= to_load
                         
+                        # Calcul du nombre de drones nécessaires pour transporter les produits de ce warehouse
+                        nb_drones = math.ceil((to_load * int(challenge.product_weights[product])) / challenge.max_payload)
+                        # Recherche des drones les plus proches du warehouse
+                        drones = sorted(challenge.drones, key=lambda d:Drone.calculate_distance(d.current_location, warehouse.location))
+                        # Sélection des drones conservés pour ce warehouse
+                        chosen_drones = [drones[i] for i in range(nb_drones)]
 
+                        for drone in chosen_drones:
+                            if to_load <= challenge.max_payload:
+                                drone_load = to_load
+                            else:
+                                drone_load = challenge.max_payload
+                                to_load -= drone_load
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    for count, order in enumerate(challenge.orders):
-        drone = challenge.drones[count%len(challenge.drones)]
-
-        warehouses = sorted(challenge.warehouses, key=lambda w:Drone.calculate_distance(w.location, drone.current_location))
-
-        warehouse_count = 0
-
-        while not order.is_completed():
-            while drone.current_load < challenge.max_payload and not drone.has_remaining(order):
-                warehouse = warehouses[warehouse_count]
-
-                for product, amount in order.products.items():
-                    if not drone.has_product_asked(product, amount) and warehouse.products[product] > 0:
-                        to_load = amount if warehouse.products[product] >= amount else warehouse.products[product]
-
-                        for _ in range(to_load):
-                            if drone.can_load(product, 1, challenge.product_weights):
-                                drone.load(warehouse, product, 1, challenge.product_weights, solutions)
-
-                warehouse_count += 1
-
-                if warehouse_count == len(warehouses):
-                    warehouse_count = 0
-                    break
-
-            for product, quantity in drone.products.items():
-                if product in order.products and order.products[product] > 0:
-                    to_deliver = quantity if order.products[product] >= quantity else order.products[product]
-                    drone.deliver(order, product, to_deliver, challenge.product_weights, solutions)
+                            solutions.append([drone.id, 'L', warehouse.id, product, drone_load])
+                            solutions.append([drone.id, 'D', order.id, product, drone_load])
+                            challenge.drones[drone.id].current_location = location
 
     return solutions
-
 
 def score_solution(solution, challenge):
     # Initialisation du score
