@@ -61,11 +61,13 @@ def solve(challenge):
                         # Sélection des drones conservés pour ce warehouse
                         for drone in [drones[i] for i in range(nb_drones)]:
                             # Divise la charge entre les différents drones
-                            if to_load <= challenge.max_payload:
+                            if (to_load * int(challenge.product_weights[product])) <= challenge.max_payload:
                                 drone_load = to_load
                             else:
-                                drone_load = challenge.max_payload
-                                to_load -= drone_load
+                                for i in range(to_load):
+                                    if drone.can_load(product, 1, challenge.product_weights):
+                                        drone_load += int(challenge.product_weights[product])
+                                        to_load -= 1 
 
                             solutions.append([drone.id, 'L', warehouse.id, product, drone_load])
                             solutions.append([drone.id, 'D', order.id, product, drone_load])
