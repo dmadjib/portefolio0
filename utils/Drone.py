@@ -63,14 +63,14 @@ class Drone:
         distance = Drone.calculate_distance(self.current_location, location)
         self.available_turn += int(math.ceil(distance))
 
-    def load(self, warehouse, product_type, quantity, product_weights, solutions):
+    def load(self, warehouse, product_type, quantity, product_weights, history):
         """
             - Try to load a specific quantity of a product from a warehouse
             - Update the solution with the appropriate command if the drone has loaded the product
         """
         total_weight = quantity * int(product_weights[product_type])
         self.current_load += total_weight
-        solutions.append([self.id, 'L', warehouse.id, product_type, quantity])
+        history.append([self.id, 'L', warehouse.id, product_type, quantity])
 
         try:
             self.products[product_type] += quantity
@@ -79,14 +79,14 @@ class Drone:
 
         warehouse.products[product_type] -= quantity
 
-    def deliver(self, order, product_type, quantity, product_weights, solutions):
+    def deliver(self, order, product_type, quantity, product_weights, history):
         """
             - Update the solution with the appropriate command after the drone has delivered the product
         """
         order.products[product_type] -= quantity
         self.current_load -= quantity * int(product_weights[product_type])
         self.products[product_type] -= quantity
-        solutions.append([self.id, 'D', order.id, product_type, quantity])
+        history.append([self.id, 'D', order.id, product_type, quantity])
 
     """ Static Method """
     @staticmethod
