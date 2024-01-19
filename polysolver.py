@@ -83,12 +83,13 @@ def solve(challenge):
 
     # Solution temporaire pour répartir les drones dans la carte à la première itération
     # (On mise sur le fait que la localisation des orders n'est pas correlé à sa place dans la liste des orders de challenge)
-    for id in paths.keys():
+    for id in sorted(paths.keys()):
         # ID vaut 0...len(drones)
-        # On suppose qu'il y a plus de commandes que de drones
-        segment = segments.pop(id)
-        paths[id].append(segment)
-        lenght_paths[id] += segment.turns
+        # Le if est pour les cas où il y a moins de commandes que de drones
+        if len(segments) > 0:        
+            segment = segments.pop()
+            paths[id].append(segment)
+            lenght_paths[id] += segment.turns
 
     # On cherche à attribuer tous les segments à des drones
     while len(segments) > 0:
