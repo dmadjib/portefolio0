@@ -21,7 +21,7 @@ class Drone:
     def __init__(self, drone_id, max_payload, initial_location):
         self.id = drone_id
         self.max_payload = max_payload
-        self.current_location = initial_location
+        self.location = initial_location
         self.current_load = 0
         self.available_turn = 0
         self.products = {}
@@ -60,7 +60,7 @@ class Drone:
         """
             - Update the turn of the drone
         """
-        distance = Drone.calculate_distance(self.current_location, location)
+        distance = Drone.calculate_distance(self.location, location)
         self.available_turn += int(math.ceil(distance))
 
     def load(self, warehouse, product_type, quantity, product_weights, history):
@@ -71,6 +71,7 @@ class Drone:
         total_weight = quantity * int(product_weights[product_type])
         self.current_load += total_weight
         history.append([self.id, 'L', warehouse.id, product_type, quantity])
+        self.location = warehouse.location
 
         try:
             self.products[product_type] += quantity
@@ -87,6 +88,7 @@ class Drone:
         self.current_load -= quantity * int(product_weights[product_type])
         self.products[product_type] -= quantity
         history.append([self.id, 'D', order.id, product_type, quantity])
+        self.location = order.location
 
     """ Static Method """
     @staticmethod
