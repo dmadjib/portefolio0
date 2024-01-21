@@ -20,103 +20,67 @@ def save_solution (file_name, tab_solution) :
 
 def solve(challenge):
     solutions = []
-
-    # Liste des segments
-    segments = []
-
-    # Construction d'un segment pour chaque order
+    total_quantity ={}
+    # Parcourir chaque commande et mettre à jour le dictionnaire
     for order in challenge.orders:
-        # Liste des ID des warhouses trié du plus proche au plus éloigné
-        warehouses = list(map(lambda w: w.id, sorted(challenge.warehouses, key=lambda w:Drone.calculate_distance(w.location, order.location))))
+        for product, quantity in order.products.items():
+            if product in total_quantity.keys():
+                total_quantity[product] += quantity
+            else:
+                total_quantity[product] = quantity
 
-        warehouse_count = 0
+    # Dictionnaire pour stocker les entrepôts pour chaque produit
+    product_warehouses = {}
 
-        # Liste des actions à réaliser pour ce segment
-        actions = []
+    # Parcourir chaque entrepôt et mettre à jour le dictionnaire
+    for warehouse in challenge.warehouses:
+        for product, quantity in enumerate(warehouse.products):
+            if product in product_warehouses.keys():
+                product_warehouses[product].append(warehouse.id)
+            else :
+                product_warehouses[product] = [warehouse.id]
 
-        # Faux drone utilisé pour tracer l'itinéraire à réaliser pour une order
-        drone = challenge.drones[0]
+    total_quantity_sorted = sorted(total_quantity.keys(), key=lambda p: total_quantity[p], reverse=True)
 
-        while not order.is_completed():
-            # Tant que le drone n'est pas plein ou n'a pas tout
-            while drone.current_load < challenge.max_payload and not drone.has_remaining(order):
-                # ID du warehouse suivant à vérifier
-                warehouse = warehouses[warehouse_count]
-
-                # Pour chaque produit
-                for product, amount in order.products.items():
-                    # Si le drone n'a pas le produit demandé et que le warehouse l'a
-                    if not drone.has_product_asked(product, amount) and challenge.warehouses[warehouse].products[product] > 0:
-                        # Calcul de la quantité à charger
-                        if challenge.warehouses[warehouse].products[product] >= amount:
-                            to_load = amount
-                        else:
-                            to_load = challenge.warehouses[warehouse].products[product]
-
-                        # Chargement de ce qui est possible
-                        for _ in range(to_load):
-                            if drone.can_load(product, 1, challenge.product_weights):
-                                drone.load(challenge.warehouses[warehouse], product, 1, challenge.product_weights, actions)
-
-
-                # Warehouse suivant
-                warehouse_count += 1
-
-                if warehouse_count == len(warehouses):
-                    warehouse_count = 0
+    for product in total_quantity_sorted:
+        can_load = challenge.max_payload // int(challenge.product_weights[product])
+        while total_quantity[product] > 0:
+            for drone in challenge.drones:
+                if total_quantity[product] == 0:
                     break
 
-            # Livraison de chaque item à l'order
-            for product, quantity in drone.products.items():
-                if product in order.products and order.products[product] > 0 and quantity > 0:
-                    to_deliver = quantity if order.products[product] >= quantity else order.products[product]
-                    drone.deliver(order, product, to_deliver, challenge.product_weights, actions)
+                warehouses = sorted(product_warehouses[product], key=lambda id: Drone.calculate_distance(drone.current_location, challenge.warehouses[id].location))
 
-        # Quand l'order est complétée, son chemin (actions) est ajouté en tant que nouveau segment
-        segments.append(Segment(Segment.get_location(actions[0], challenge), order.location, challenge, actions))
+                warehouse_count = 0
 
-    # Trace du parcours de chaque drone
-    paths = {drone.id:[] for drone in challenge.drones}
-    # Sauvegarde du temps pris pour toutes les commandes d'un drone
-    # Sert à ne pas recalculer à chaque itération
-    lenght_paths = {drone.id:0 for drone in challenge.drones}
+                while total_quantity[product] != 0 and drone.can_load(product, 1, challenge.product_weights):
+                    # Ne va jamais dépasser le nombre de warehouses
+                    warehouse = challenge.warehouses[warehouses[warehouse_count]]
 
-    # Solution temporaire pour répartir les drones dans la carte à la première itération
-    # (On mise sur le fait que la localisation des orders n'est pas correlé à sa place dans la liste des orders de challenge)
-    for id in sorted(paths.keys()):
-        # ID vaut 0...len(drones)
-        # Le if est pour les cas où il y a moins de commandes que de drones
-        if len(segments) > 0:        
-            segment = segments.pop()
-            paths[id].append(segment)
-            lenght_paths[id] += segment.turns
+                    # 3 cas possibles
+                    # Soit ce qu'il reste à livrer
+                    # Soit ce qu'il reste dans le warehouse
+                    # Soit ce que le drone peut porter
+                    if can_load >= total_quantity[product] and warehouse.products[product] >= total_quantity[product]:
+                        load = total_quantity[product]
+                    elif warehouse.products[product] < can_load:
+                        load = warehouse.products[product]
+                    else:
+                        load = can_load
 
-    # On cherche à attribuer tous les segments à des drones
-    while len(segments) > 0:
-        # Sélection du drone qui est le moins occupé
-        id = min(lenght_paths, key=lenght_paths.get)
+                    total_quantity[product] -= load
+                    warehouse.products[product] -= load
+                    drone.load(warehouse, product, load, challenge.product_weights, solutions)
+                
+                    if warehouse.products[product] == 0:
+                        product_warehouses[product].remove(warehouse.id)
+                
+                    warehouse_count += 1
 
-        # Choix du segment qui commence le plus proche de lui
-        segment = min(segments, key=lambda segment:Drone.calculate_distance(segment.start, paths[id][-1].end))
-        # On retire le segment de la liste des segments à attribuer
-        segments.remove(segment)
-        # Ajout du segment à la liste des segments visités par le drone
-        paths[id].append(segment)
-        # Ajout du temps de déplacement vers le segment et celui du segment
-        lenght_paths[id] += segment.turns + math.ceil(Drone.calculate_distance(segment.start, paths[id][-1].end))
+                orders = list(filter(lambda o: product in o.products.keys(), challenge.orders))
 
-    # Quand tous les segments ont été attribués
-    # Ajout de toutes les actions à la liste des solutions
+                orders = sorted(orders, key=lambda o: Drone.calculate_distance(o.location, drone.current_location))
 
-    # Pour chaque drone
-    for id, segments in paths.items():
-        # Pour chaque segment
-        for segment in segments:
-            # Pour chaque action
-            for action in segment.actions:
-                # Ajout dans les solutions en renseignant l'ID du drone
-                solutions.append([id, action[1], action[2], action[3], action[4]])
-    
     return solutions
 
 
