@@ -21,8 +21,56 @@ def save_solution (file_name, tab_solution) :
 def solve(challenge):
     solutions = []
 
+    # À partir de ce nombre de warehouses visités en moyenne, il y aura des drones alloués aux échanges inter-warehouses
+    DEADLINE = 2
+    # Quand il y a les échanges d'activés, il y aura RATIO fois le nombre de warehouses visités en moyenne de drones
+    RATIO = 3
+    # La proportion maximale de drones alloués aux échanges inter-warehouses
+    MAX_DRONES = 3/4
 
-    
+    # Calcul du nombre de drones affecté aux échanges inter-warehouses
+
+    # Tri des orders (du plus proche au plus éloigné d'un warehouse, peu importe lequel)
+    sorted_orders = sorted(challenge.orders, key=lambda o:min([Drone.calculate_distance(o.location, w.location) for w in challenge.warehouses]))
+
+    # Récupération du nombre de warehouses à visiter pour finir chaque commande
+    needed_warehouses = {order.id:[] for order in challenge.orders}
+    warehouses = challenge.warehouses
+
+    # Pour chaque order (en partant des plus proches d'un warehouse)
+    for o_count, order in enumerate(sorted_orders):
+        # Tri des warehouses en fonction de leur distance avec l'order
+        sorted_warehouses = sorted(challenge.warehouses, key=lambda w:Drone.calculate_distance(w.location, order.location))
+
+        # Pour chaque warehouse
+        for w_count, warehouse in enumerate(warehouses):
+            # Pour chaque produit
+            for product, amount in order.products.items():
+                # Si il est présent dans le warehouse, et qu'il est demandé dans l'order
+                if warehouse.products[product] > 0 and order.products[product] > 0:
+                    # Le produit est retiré du warehouse et de l'order
+                    load = amount if warehouse.products[product] >= amount else warehouse.products[product]
+                    sorted_orders[o_count].products[product] -= load
+                    sorted_warehouses[w_count].products[product] -= load
+                    
+                    # Le warehouse est ajouté à la liste des warehouses visité
+                    needed_warehouses[order.id].append(warehouse.id)
+
+    # Nombre moyen de différents warehouses visités (arrondi à l'unité)
+    average_warehouses = round(sum([len(set(w)) for w in needed_warehouses.values()])) / len(needed_warehouses.keys())
+
+    # Détermine si il y aura des drones utilisés pour l'échange inter-warehouses
+    has_exchanges = average_warehouses > DEADLINE
+
+    if has_exchanges:
+        # Nombre de drones alloués à l'échange inter-warehouses
+        # Plafonne le nombre de drones alloués
+        nb_drones = min(len(challenge.drones) * RATIO, round(len(challenge.drones) * MAX_DRONES))
+
+        # Déclare les drones alloués
+        for i in range(nb_drones):
+            challenge.drones[i].is_exchanging = True
+
     return solutions
 
 

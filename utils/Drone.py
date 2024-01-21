@@ -24,6 +24,7 @@ class Drone:
         self.current_location = initial_location
         self.current_load = 0
         self.available_turn = 0
+        self.is_exchanging = False
         self.products = {}
 
     def available(self, current_turn):
