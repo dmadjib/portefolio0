@@ -104,8 +104,6 @@ def score_solution(solution, challenge):
     # Initialisation du score
     score = 0
 
-    toto = []
-
     for drone in challenge.drones:
         # On ne garde que les opérations du drone en question
         moves = list(filter(lambda move: move[0] == drone.id, solution))
@@ -139,8 +137,6 @@ def score_solution(solution, challenge):
             if completed:
                 # Si l'order est complétée, alors ajout du score (prise en compte du déplacement mais pas du temps pris pour le dépôt)
                 score += math.ceil(((challenge.deadline - turns) / challenge.deadline) * 100)
-
-                toto.append(turns + 1)
 
                 # Pris en compte du tour passé à charger / déposer pour les prochaines opérations
             turns += 1
