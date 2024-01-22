@@ -10,7 +10,7 @@ from utils.Segment import Segment
 import math
 import copy
  
-def save_solution (file_name, tab_solution) : 
+def save_solution (file_name, tab_solution): 
     with open(f'{file_name}.txt', 'w') as outfile :
         outfile.write(str(len(tab_solution)) + '\n')
         for i in range(len(tab_solution)) : 
@@ -21,6 +21,8 @@ def save_solution (file_name, tab_solution) :
 def score_solution(solution, challenge):
     # Initialisation du score
     score = 0
+
+    completed_orders = []
 
     for drone in challenge.drones:
         # On ne garde que les opérations du drone en question
@@ -35,7 +37,7 @@ def score_solution(solution, challenge):
             # L'opération actuelle ne complète pas d'order par défaut
             completed = False
 
-            if move[1] == 'L':
+            if move[1] in {'L', 'U'}:
                 # Si l'opération est une charge, alors le drone va vers un warehouse
                 next_pos = challenge.warehouses[move[2]].location
             elif move[1] == 'D':
@@ -44,19 +46,26 @@ def score_solution(solution, challenge):
                 # Retrait de la liste des commandes des items livrés
                 challenge.orders[move[2]].products[move[3]] -= move[4]
                 # Si après le dépôt l'order est complétée
-                if challenge.orders[move[2]].is_completed():
+                if challenge.orders[move[2]] not in completed_orders and challenge.orders[move[2]].is_completed():
                     completed = True
+                    completed_orders.append(challenge.orders[move[2]])
+            elif move[1] == 'W':
+                turns += move[2]
+                break
 
-            # Ajout des tours pour le déplacement (après dépôt / charge)
-            turns += math.ceil(Drone.calculate_distance(pos, next_pos))
+            # Distance parcourue pour aller effectuer l'action
+            distance = Drone.calculate_distance(pos, next_pos)
             # Mise à jour de la localisation du drone
             pos = next_pos
+
+            # Ajout des tours pour le déplacement
+            turns += distance
 
             if completed:
                 # Si l'order est complétée, alors ajout du score (prise en compte du déplacement mais pas du temps pris pour le dépôt)
                 score += math.ceil(((challenge.deadline - turns) / challenge.deadline) * 100)
 
-                # Pris en compte du tour passé à charger / déposer pour les prochaines opérations
+            # Temps utilisé pour livrer, charger ou décharger
             turns += 1
 
     return score
@@ -181,7 +190,7 @@ def stack_segments(challenge):
         # Ajout du segment à la liste des segments visités par le drone
         paths[id].append(segment)
         # Ajout du temps de déplacement vers le segment et celui du segment
-        lenght_paths[id] += segment.turns + math.ceil(Drone.calculate_distance(segment.start, paths[id][-1].end))
+        lenght_paths[id] += segment.turns + Drone.calculate_distance(segment.start, paths[id][-1].end)
 
     # Quand tous les segments ont été attribués
     # Ajout de toutes les actions à la liste des solutions
@@ -197,14 +206,180 @@ def stack_segments(challenge):
     
     return solutions
 
+def product_by_product(challenge):
+    solutions = []
+    total_quantity ={}
+    # Parcourir chaque commande et mettre à jour le dictionnaire
+    for order in challenge.orders:
+        for product, quantity in order.products.items():
+            if product in total_quantity.keys():
+                total_quantity[product] += quantity
+            else:
+                total_quantity[product] = quantity
+
+    # Dictionnaire pour stocker les entrepôts pour chaque produit
+    product_warehouses = {}
+
+    # Parcourir chaque entrepôt et mettre à jour le dictionnaire
+    for warehouse in challenge.warehouses:
+        for product in range(len(warehouse.products)):
+            if warehouse.products[product] > 0:
+                if product in product_warehouses.keys():
+                    product_warehouses[product].append(warehouse.id)
+                else :
+                    product_warehouses[product] = [warehouse.id]
+
+    total_quantity_sorted = sorted(total_quantity.keys(), key=lambda p: total_quantity[p], reverse=True)
+    
+    for product in total_quantity_sorted:
+        can_load = challenge.max_payload // int(challenge.product_weights[product])
+        while total_quantity[product] > 0:
+            for drone in challenge.drones:
+                if total_quantity[product] == 0:
+                    break
+                    
+                warehouses = sorted(product_warehouses[product], key=lambda id: Drone.calculate_distance(drone.location, challenge.warehouses[id].location))
+
+                warehouse_count = 0
+                load_remaining = can_load
+
+                while total_quantity[product] != 0 and load_remaining > 0:
+                    # Ne va jamais dépasser le nombre de warehouses
+                    warehouse = challenge.warehouses[warehouses[warehouse_count]]
+
+                    # 3 cas possibles
+                    # Soit ce qu'il reste à livrer
+                    # Soit ce qu'il reste dans le warehouse
+                    # Soit ce que le drone peut porter
+                    if load_remaining >= total_quantity[product] and warehouse.products[product] >= total_quantity[product]:
+                        load = total_quantity[product]
+                    elif warehouse.products[product] < load_remaining:
+                        load = warehouse.products[product]
+                    else:
+                        load = load_remaining
+
+                    total_quantity[product] -= load
+                    load_remaining -= load
+                    drone.load(warehouse, product, load, challenge.product_weights, solutions)
+                
+                    if warehouse.products[product] == 0:
+                        product_warehouses[product].remove(warehouse.id)
+                
+                    warehouse_count += 1
+                
+                orders = list(filter(lambda o: product in o.products.keys() and o.products[product] > 0, challenge.orders))
+
+                orders = sorted(orders, key=lambda o: Drone.calculate_distance(o.location, drone.location))
+
+                order_count = 0
+
+                while drone.products[product] > 0:
+                    order = challenge.orders[orders[order_count].id]
+
+                    deliver = min(drone.products[product], order.products[product])
+
+                    drone.deliver(order, product, deliver, challenge.product_weights, solutions)
+
+                    order_count += 1
+
+    return solutions
+
+def optimised_product_by_product(challenge):
+    solutions = []
+    total_quantity ={}
+    # Parcourir chaque commande et mettre à jour le dictionnaire
+    for order in challenge.orders:
+        for product, quantity in order.products.items():
+            if product in total_quantity.keys():
+                total_quantity[product] += quantity
+            else:
+                total_quantity[product] = quantity
+
+    # Dictionnaire pour stocker les entrepôts pour chaque produit
+    product_warehouses = {}
+
+    # Parcourir chaque entrepôt et mettre à jour le dictionnaire
+    for warehouse in challenge.warehouses:
+        for product in range(len(warehouse.products)):
+            if warehouse.products[product] > 0:
+                if product in product_warehouses.keys():
+                    product_warehouses[product].append(warehouse.id)
+                else :
+                    product_warehouses[product] = [warehouse.id]
+
+    total_quantity_sorted = sorted(total_quantity.keys(), key=lambda p: total_quantity[p], reverse=True)
+    
+    last_drone = 0
+
+    for product in total_quantity_sorted:
+        can_load = challenge.max_payload // int(challenge.product_weights[product])
+        while total_quantity[product] > 0:
+            if last_drone >= len(challenge.drones):
+                last_drone = 0
+
+            drone = challenge.drones[last_drone]
+                
+            warehouses = sorted(product_warehouses[product], key=lambda id: Drone.calculate_distance(drone.location, challenge.warehouses[id].location))
+
+            warehouse_count = 0
+
+            while total_quantity[product] != 0 and drone.can_load(product, 1, challenge.product_weights):
+                # Ne va jamais dépasser le nombre de warehouses
+                warehouse = challenge.warehouses[warehouses[warehouse_count]]
+
+                # 3 cas possibles
+                # Soit ce qu'il reste à livrer
+                # Soit ce qu'il reste dans le warehouse
+                # Soit ce que le drone peut porter
+                if can_load >= total_quantity[product] and warehouse.products[product] >= total_quantity[product]:
+                    load = total_quantity[product]
+                elif warehouse.products[product] < can_load:
+                    load = warehouse.products[product]
+                else:
+                    load = can_load
+
+                total_quantity[product] -= load
+                drone.load(warehouse, product, load, challenge.product_weights, solutions)
+            
+                if warehouse.products[product] == 0:
+                    product_warehouses[product].remove(warehouse.id)
+            
+                warehouse_count += 1
+            
+            orders = list(filter(lambda o: product in o.products.keys() and o.products[product] > 0, challenge.orders))
+
+            orders = sorted(orders, key=lambda o: Drone.calculate_distance(o.location, drone.location))
+
+            order_count = 0
+
+            while drone.products[product] > 0:
+                order = challenge.orders[orders[order_count].id]
+
+                deliver = min(drone.products[product], order.products[product])
+
+                drone.deliver(order, product, deliver, challenge.product_weights, solutions)
+
+                order_count += 1
+
+            last_drone += 1
+
+    return solutions
+
 def solve(challenge):
     solvers = {}
 
     solvers['stack_segments'] = stack_segments(copy.deepcopy(challenge))
-    solvers['product_by_product'] = []
+    solvers['optimised_product_by_product'] = optimised_product_by_product(copy.deepcopy(challenge))
     solvers['naive'] = naive(copy.deepcopy(challenge))
+    solvers['product_by_product'] = product_by_product(copy.deepcopy(challenge))
 
-    best_solution = max(solvers.keys(), key=lambda a: score_solution(solvers[a], copy.deepcopy(challenge)))
+    solutions = {}
+    
+    for algo, solution in solvers.items():
+        solutions[algo] = score_solution(solvers[algo], copy.deepcopy(challenge))
+        print(f'Solution \'{algo}\' : {solutions[algo]}')
+
+    best_solution = max(solutions.keys(), key=lambda a:solutions[a])
 
     print('La meilleure solution est :', best_solution)
 
