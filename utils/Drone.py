@@ -57,7 +57,7 @@ class Drone:
         return product in self.products and self.products[product] >= quantity
 
     def fly_to(self, location):
-        """score)
+        """
             - Update the turn of the drone
         """
         distance = Drone.calculate_distance(self.location, location)
