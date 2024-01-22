@@ -217,6 +217,7 @@ def stack_segments(challenge):
                 solutions.append([id, action[1], action[2], action[3], action[4]])
     
     return solutions
+
 def diviser_tableau(tableau, n):
     taille_tableau = len(tableau)
     taille_sous_tableau = taille_tableau // n
@@ -271,7 +272,6 @@ def score_zone(challenge,zone):
 
         return solutions
 
-
 def main_warehouse_layers(challenge):
     solutions = []
 
@@ -292,12 +292,43 @@ def main_warehouse_layers(challenge):
             solutions.append(solution)
     return solutions
 
+def workload_repartition(challenge):
+    solutions = []
+
+    product_warehouses = {}
+
+    for warehouse in challenge.warehouses:
+            for product in range(len(warehouse.products)):
+                if warehouse.products[product] > 0:
+                    if product in product_warehouses.keys():
+                        product_warehouses[product].append(warehouse.id)
+                    else :
+                        product_warehouses[product] = [warehouse.id]
+
+    for order in challenge.orders:
+        nearest_warehouse = sorted(challenge.warehouses, lambda w: Drone.calculate_distance(order.location, w.location))[0]
+
+        # Soit prendre les plus proche
+        # Soit les plus chargés
+        # Pour chaque order on garde la solution la plus rapide
+                        
+        # Déterminer le nombre de drones, et l'ordre de quel wharehouse visiter dans quel ordre
+
+        # Trouver des drones qui seront dispo le plus vite possible pour les transferts
+
+        # Si c'est trop long, le drone de l'order ira lui même, sinon il va wait (si c'est juste un peu)
+
+        # Faire qqch de similaire que stack strace
+
+    return solutions
+
 def solve(challenge):
     solvers = {}
 
     solvers['stack_segments'] = stack_segments(copy.deepcopy(challenge))
     solvers['naive'] = naive(copy.deepcopy(challenge))
     solvers['main_warehouse_layers'] = main_warehouse_layers(copy.deepcopy(challenge))
+    solvers['workload_repartition'] = workload_repartition(copy.deepcopy(challenge))
 
     solutions = {}
     
