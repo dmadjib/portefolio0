@@ -53,7 +53,7 @@ def score_solution(solution, challenge):
                 turns += Drone.calculate_distance(pos, next_pos)
 
                 # Insérer la livraison dans la liste des actions de livraisons
-                if not challenge.orders[move[2]].is_completed():
+                if move[2] not in completed_orders:
                     if move[2] not in order_turns.keys():
                         order_turns[move[2]] = [turns]
                     else:
