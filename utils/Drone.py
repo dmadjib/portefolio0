@@ -61,7 +61,7 @@ class Drone:
             - Update the turn of the drone
         """
         distance = Drone.calculate_distance(self.location, location)
-        self.available_turn += int(math.ceil(distance))
+        self.available_turn += distance
 
     def load(self, warehouse, product_type, quantity, product_weights, history):
         """
@@ -97,4 +97,4 @@ class Drone:
             - Calculate the distance between two location
             :return:        The distance
         """
-        return math.sqrt((location1[0] - location2[0]) ** 2 + (location1[1] - location2[1]) ** 2)
+        return math.ceil(math.sqrt((location1[0] - location2[0]) ** 2 + (location1[1] - location2[1]) ** 2))

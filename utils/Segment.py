@@ -22,7 +22,7 @@ class Segment:
             # Récupérer la localisation de l'action
             location = Segment.get_location(action, challenge)
             # Ajout des tours pour le déplacement (après dépôt / charge)
-            turns += math.ceil(Drone.calculate_distance(pos, location)) + 1
+            turns += Drone.calculate_distance(pos, location) + 1
             # Mise à jour de la localisation du drone
             pos = location
 
