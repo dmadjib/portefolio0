@@ -217,12 +217,87 @@ def stack_segments(challenge):
                 solutions.append([id, action[1], action[2], action[3], action[4]])
     
     return solutions
+def diviser_tableau(tableau, n):
+    taille_tableau = len(tableau)
+    taille_sous_tableau = taille_tableau // n
+    tableaux_resultats = []
+
+    # Diviser le tableau en n parties
+    for i in range(n):
+        debut = i * taille_sous_tableau
+        fin = (i + 1) * taille_sous_tableau
+
+        # Pour le dernier morceau, inclure les éléments restants
+        if i == n - 1:
+            fin = taille_tableau
+
+        sous_tableau = tableau[debut:fin]
+        tableaux_resultats.append(sous_tableau)
+
+    return tableaux_resultats
+
+def score_zone(challenge,zone):
+        solutions = []
+
+        for count, order in enumerate(zone):
+            drone = challenge.drones[count%len(challenge.drones)]
+
+            warehouses = sorted(challenge.warehouses, key=lambda w:Drone.calculate_distance(w.location, drone.location))
+
+            warehouse_count = 0
+
+            while not order.is_completed():
+                while drone.current_load < challenge.max_payload and not drone.has_remaining(order):
+                    warehouse = warehouses[warehouse_count]
+
+                    for product, amount in order.products.items():
+                        if not drone.has_product_asked(product, amount) and warehouse.products[product] > 0:
+                            to_load = amount if warehouse.products[product] >= amount else warehouse.products[product]
+
+                            for _ in range(to_load):
+                                if drone.can_load(product, 1, challenge.product_weights):
+                                    drone.load(warehouse, product, 1, challenge.product_weights, solutions)
+
+                    warehouse_count += 1
+
+                    if warehouse_count == len(warehouses):
+                        warehouse_count = 0
+                        break
+
+                for product, quantity in drone.products.items():
+                    if product in order.products and order.products[product] > 0:
+                        to_deliver = quantity if order.products[product] >= quantity else order.products[product]
+                        drone.deliver(order, product, to_deliver, challenge.product_weights, solutions)
+
+        return solutions
+
+
+def main_warehouse_layers(challenge):
+    solutions = []
+
+    sorted_orders = sorted(challenge.orders, key=lambda o:Drone.calculate_distance(o.location, challenge.warehouses[0].location))
+    NB_ZONES = 10
+    order_zones = diviser_tableau(sorted_orders,NB_ZONES)
+    zones_scores = []
+    local_solutions = []
+    for i,zone in enumerate(order_zones):   
+        solution = score_zone(challenge,zone)
+        local_solutions.append(solution)
+        score = score_solution(solutions, challenge)
+        zones_scores.append((i, score))
+    sorted_zones_scores = sorted(zones_scores, key=lambda x: x[1], reverse=True)
+    
+    for id, score in sorted_zones_scores:
+        for solution in local_solutions[id]:
+            solutions.append(solution)
+    return solutions
 
 def solve(challenge):
     solvers = {}
 
     solvers['stack_segments'] = stack_segments(copy.deepcopy(challenge))
     solvers['naive'] = naive(copy.deepcopy(challenge))
+    solvers['main_warehouse_layers'] = main_warehouse_layers(copy.deepcopy(challenge))
 
     solutions = {}
     
