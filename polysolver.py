@@ -173,6 +173,7 @@ def stack_segments(challenge):
 
         # Quand l'order est complétée, son chemin (actions) est ajouté en tant que nouveau segment
         segments.append(Segment(Segment.get_location(actions[0], challenge, 2), order.location, challenge, actions, order.id, 2))
+        segments.append(Segment(Segment.get_location(actions[0], challenge, 2), order.location, challenge, actions, order.id, 2))
 
     # Trace du parcours de chaque drone
     paths = {drone.id:[] for drone in challenge.drones}
@@ -398,6 +399,76 @@ def workload_repartition(challenge):
                 if action[2] not in product_list.keys():
                     product_list[action[2]] = action[3]
                 else:
+                    product_list[action[2]] += action[3]
+            
+            # Ajout des actions de livraison
+            for product, quantity in product_list.items():
+                actions.append(['D', order.id, product, quantity])
+            
+            # Quand l'order est complétée, les actions sont converties en nouveau segment
+            segments.append(Segment(Segment.get_location(actions[0], challenge, 1), order.location, challenge, actions, order.id, 1))
+
+    # Trace du parcours de chaque drone
+    paths = {drone.id:[] for drone in challenge.drones}
+    # Sauvegarde du temps pris pour toutes les commandes d'un drone
+    # Sert à ne pas recalculer à chaque itération
+    lenght_paths = {drone.id:0 for drone in challenge.drones}
+    # Tableau désignant les orders en cours d'exécution, qui sont prioritaires
+    ongoing_orders = []
+    
+    # Solution temporaire pour répartir les drones dans la carte à la première itération
+    # (On mise sur le fait que la localisation des orders n'est pas correlé à sa place dans la liste des orders de challenge)
+    for id in sorted(paths.keys()):
+        # ID vaut 0...len(drones)
+        # Le if est pour les cas où il y a moins de commandes que de drones
+        if len(segments) > 0:        
+            segment = segments.pop()
+            paths[id].append(segment)
+            lenght_paths[id] += segment.turns
+
+    # On cherche à attribuer tous les segments à des drones
+    while len(segments) > 0:
+        # Sélection du drone qui est le moins occupé
+        id = min(lenght_paths, key=lenght_paths.get)
+
+        # Choix du segment qui commence le plus proche de lui
+        if len(ongoing_orders) > 0: 
+            # Si il y a des orders en cours, les prioriser
+            segments_list = list(filter(lambda s: s.order_id in ongoing_orders, segments))
+        else:
+            # Sinon on choisi parmis des segments d'orders non commencés
+            segments_list = segments
+
+        segment = min(segments_list, key=lambda segment:Drone.calculate_distance(segment.start, paths[id][-1].end))
+        # On retire le segment de la liste des segments à attribuer
+        segments.remove(segment)
+        # Ajout du segment à la liste des segments visités par le drone
+        paths[id].append(segment)
+        # Ajout du temps de déplacement vers le segment et celui du segment
+        lenght_paths[id] += segment.turns + Drone.calculate_distance(segment.start, paths[id][-1].end)
+
+        # Mise à jour de la liste des ongoing orders
+        # Si l'order n'est pas en cours
+        if segment.order_id in ongoing_orders:
+            if segment.order_id not in [segment.order_id for segment in segments]:
+                # Si il n'y a plus de segments pour l'order en question, on la retire
+                ongoing_orders.remove(segment.order_id)
+        else:
+            if segment.order_id in [segment.order_id for segment in segments]:
+                # Si l'order n'est pas dans ongoing et qu'il reste des actions à faire, la rajouter
+                ongoing_orders.append(segment.order_id)
+
+    # Quand tous les segments ont été attribués
+    # Ajout de toutes les actions à la liste des solutions
+
+    # Pour chaque drone
+    for id, segments in paths.items():
+        # Pour chaque segment
+        for segment in segments:
+            # Pour chaque action
+            for action in segment.actions:
+                # Ajout dans les solutions en renseignant l'ID du drone
+                solutions.append([id, action[0], action[1], action[2], action[3]])
                     product_list[action[2]] += action[3]
             
             # Ajout des actions de livraison
