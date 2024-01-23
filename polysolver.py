@@ -296,7 +296,7 @@ def workload_repartition(challenge):
     solutions = []
 
     # Si passer par un warehouse au passage pour aider l'order est RATIO fois plus court, alors le détour en vaut la peine
-    LONGER_THAN_ORDER_RATIO = 1.5
+    LONGER_THAN_ORDER_RATIO = 4
 
     # Liste des segments
     segments = []
