@@ -275,15 +275,16 @@ def score_zone(challenge,zone):
 def main_warehouse_layers(challenge):
     solutions = []
 
-    sorted_orders = sorted(challenge.orders, key=lambda o:Drone.calculate_distance(o.location, challenge.warehouses[0].location))
     NB_ZONES = 10
+
+    sorted_orders = sorted(challenge.orders, key=lambda o:Drone.calculate_distance(o.location, challenge.warehouses[0].location))
     order_zones = diviser_tableau(sorted_orders,NB_ZONES)
     zones_scores = []
     local_solutions = []
     for i,zone in enumerate(order_zones):   
-        solution = score_zone(challenge,zone)
+        solution = score_zone(copy.deepcopy(challenge),zone)
         local_solutions.append(solution)
-        score = score_solution(solutions, challenge)
+        score = score_solution(solution, challenge)
         zones_scores.append((i, score))
     sorted_zones_scores = sorted(zones_scores, key=lambda x: x[1], reverse=True)
     
