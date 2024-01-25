@@ -1,0 +1,16 @@
+# .gitlab-ci.yml
+
+# Spécifie l'image Docker à utiliser pour exécuter les tâches
+image: python:3.8
+
+# Définit les étapes du pipeline
+stages:
+  - test
+
+# Définit les tâches à effectuer dans chaque étape
+# Dans ce cas, nous exécutons la vérification PEP8 avec flake8
+pep8:
+  stage: test
+  script:
+    - pip install flake8
+    - flake8 . --count --show-source --statistics
