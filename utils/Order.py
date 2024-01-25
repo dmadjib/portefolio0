@@ -19,6 +19,7 @@ class Order:
 
     def __init__(self, id, x, y, products) -> None:
         self.id = id
+        self.initial_amount = sum(products)
         self.location = (x, y)
         self.amount = len(products)
         self.products = {product_type: products.count(product_type) for product_type in products}

@@ -22,6 +22,9 @@ def score_solution(solution, challenge):
     # Initialisation du score
     score = 0
 
+    # Récupèrer une order à partir de son ID
+    orders = {order.id:order for order in challenge.orders}
+    
     # Sauvegarde des orders complétées pour empêcher de livrer dans une order complétée
     completed_orders = []
 
@@ -40,15 +43,15 @@ def score_solution(solution, challenge):
         for move in moves:
             if move[1] in {'L', 'U'}:
                 # Si l'opération est une charge, alors le drone va vers un warehouse
-                next_pos = challenge.warehouses[move[2]].location
+                next_pos = list(filter(lambda w:w.id == move[2], challenge.warehouses))[0].location
 
                 # Distance parcourue pour aller effectuer l'action ajoutées aux tours + 1 tour pour charger / décharger
                 turns += Drone.calculate_distance(pos, next_pos) + 1
 
             elif move[1] == 'D':
                 # Si l'opération est un dépôt, alors le drone va vers une order
-                next_pos = challenge.orders[move[2]].location
-
+                next_pos = orders[move[2]].location
+                
                 # Distance parcourue pour aller effectuer l'action ajoutées aux tours
                 turns += Drone.calculate_distance(pos, next_pos)
 
@@ -60,13 +63,13 @@ def score_solution(solution, challenge):
                         order_turns[move[2]].append(turns)
 
                 # Retrait de la liste des commandes des items livrés
-                challenge.orders[move[2]].products[move[3]] -= move[4]
+                orders[move[2]].products[move[3]] -= move[4]
 
                 # Ajout du tour de la livraison
                 turns += 1
 
                 # Si tous les produits ont été livrés (pas forcément dans le bon ordre)
-                if move[2] not in completed_orders and challenge.orders[move[2]].is_completed():
+                if move[2] not in completed_orders and orders[move[2]].is_completed():
                     completed_orders.append(move[2])
 
             elif move[1] == 'W':
@@ -77,9 +80,9 @@ def score_solution(solution, challenge):
             pos = next_pos
     
     for order, turns in order_turns.items():
-        if challenge.orders[order].is_completed():
+        if orders[order].is_completed():
             score += math.ceil(((challenge.deadline - max(turns)) / challenge.deadline) * 100)
-
+    
     return score
 
 def naive(challenge):
@@ -179,24 +182,22 @@ def stack_segments(challenge):
     # Sauvegarde du temps pris pour toutes les commandes d'un drone
     # Sert à ne pas recalculer à chaque itération
     lenght_paths = {drone.id:0 for drone in challenge.drones}
+    # On choisi les NB DRONES segments les plus simples à finir
+    simplest_segments = sorted(segments, key=lambda s:s.turns, reverse=True)
 
-    # Solution temporaire pour répartir les drones dans la carte à la première itération
-    # (On mise sur le fait que la localisation des orders n'est pas correlé à sa place dans la liste des orders de challenge)
-    for id in sorted(paths.keys()):
-        # ID vaut 0...len(drones)
-        # Le if est pour les cas où il y a moins de commandes que de drones
-        if len(segments) > 0:        
-            segment = segments.pop()
-            paths[id].append(segment)
-            lenght_paths[id] += segment.turns
+    for i in range(len(challenge.drones)):
+        segment = simplest_segments.pop()
+        segments.remove(segment)
+        paths[i].append(segment)
+        lenght_paths[i] += segment.turns
 
     # On cherche à attribuer tous les segments à des drones
     while len(segments) > 0:
         # Sélection du drone qui est le moins occupé
         id = min(lenght_paths, key=lenght_paths.get)
 
-        # Choix du segment qui commence le plus proche de lui
-        segment = min(segments, key=lambda segment:Drone.calculate_distance(segment.start, paths[id][-1].end))
+        # Choix du segment qui dure le moins longtemps
+        segment = min(segments, key=lambda segment:segment.turns)
         # On retire le segment de la liste des segments à attribuer
         segments.remove(segment)
         # Ajout du segment à la liste des segments visités par le drone
@@ -242,7 +243,8 @@ def main_warehouse_layers(challenge):
 
     NB_ZONES = 3
 
-    sorted_orders = sorted(challenge.orders, key=lambda o:Drone.calculate_distance(o.location, challenge.warehouses[0].location))
+    # Warehouse le plus au centre
+    sorted_orders = sorted(challenge.orders, key=lambda o:Drone.calculate_distance(o.location, (challenge.rows_count / 2, challenge.columns_count / 2)))
     order_zones = diviser_tableau(sorted_orders,NB_ZONES)
     future_order_zones = copy.deepcopy(order_zones)
     
@@ -251,7 +253,8 @@ def main_warehouse_layers(challenge):
     for i,zone in enumerate(order_zones):
         new_challenge = copy.deepcopy(challenge)
         new_challenge.orders = zone
-        zones_scores.append((i, score_solution(workload_repartition(new_challenge), challenge)))
+        score_challenge = copy.deepcopy(new_challenge)
+        zones_scores.append((i, score_solution(stack_segments(new_challenge), score_challenge)))
     sorted_zones_scores = sorted(zones_scores, key=lambda x: x[1], reverse=True)
     
     for id, score in sorted_zones_scores:
@@ -267,9 +270,14 @@ def workload_repartition(challenge):
 
     # Si passer par un warehouse au passage pour aider l'order est RATIO fois plus court, alors le détour en vaut la peine
     LONGER_THAN_ORDER_RATIO = 3
+    # Pourcentage du coefficient des orders qui représente la complétion d'une order
+    RATIO_ORDER_COMPLETION = 0.76
 
     # Liste des segments
     segments = []
+
+    # Accéder simplement à une order par son ID
+    orders_by_id = {order.id:i for i, order in enumerate(challenge.orders)}
 
     # Construction de segments pour chaque order
     for order in challenge.orders:
@@ -384,50 +392,54 @@ def workload_repartition(challenge):
     # Sauvegarde du temps pris pour toutes les commandes d'un drone
     # Sert à ne pas recalculer à chaque itération
     lenght_paths = {drone.id:0 for drone in challenge.drones}
-    # Tableau désignant les orders en cours d'exécution, qui sont prioritaires
-    ongoing_orders = []
     
-    # Solution temporaire pour répartir les drones dans la carte à la première itération
-    # (On mise sur le fait que la localisation des orders n'est pas correlé à sa place dans la liste des orders de challenge)
-    for id in sorted(paths.keys()):
-        # ID vaut 0...len(drones)
-        # Le if est pour les cas où il y a moins de commandes que de drones
-        if len(segments) > 0:        
-            segment = segments.pop()
-            paths[id].append(segment)
-            lenght_paths[id] += segment.turns
+    # Nombre de segments par orders
+    segments_per_orders = {id:len(list(filter(lambda s:s.order_id == id, segments))) for id in orders_by_id.keys()}
+    
+    # On choisi les NB DRONES segments les plus simples à finir
+    simplest_segments = sorted(segments, key=lambda s:segments_per_orders[s.order_id], reverse=True)
+
+    for i in range(len(challenge.drones)):
+        if len(simplest_segments) > 0:
+            segment = simplest_segments.pop()
+            segments.remove(segment)
+            paths[i].append(segment)
+            lenght_paths[i] += segment.turns
+
+    # Segment qui prend le plus de temps + plus longue distance possiblement parcourable
+    if len(segments) > 0:
+        longest_time = sorted(segments, key=lambda s:s.turns)[-1].turns + math.sqrt(challenge.rows_count ** 2 + challenge.columns_count ** 2)
 
     # On cherche à attribuer tous les segments à des drones
     while len(segments) > 0:
         # Sélection du drone qui est le moins occupé
         id = min(lenght_paths, key=lenght_paths.get)
 
-        # Choix du segment qui commence le plus proche de lui
-        if len(ongoing_orders) > 0: 
-            # Si il y a des orders en cours, les prioriser
-            segments_list = list(filter(lambda s: s.order_id in ongoing_orders, segments))
-        else:
-            # Sinon on choisi parmis des segments d'orders non commencés
-            segments_list = segments
+        # Choix du segment en fonction de plusieurs facteurs
+        # Si le segment appartient à une order qui se termine bientôt
+        # Si le drone terminera le segment dans un long moment (temps de vol + déroulé du segment)
+        # Score de 0 à 100
+        next_segment = (-1, 100)
 
-        segment = min(segments_list, key=lambda segment:Drone.calculate_distance(segment.start, paths[id][-1].end))
+        for count, segment in enumerate(segments):
+            order = challenge.orders[orders_by_id[segment.order_id]]
+            # Pourcentage de complétion de la commande associée
+            order_completion = ((order.initial_amount - sum(order.products)) / order.initial_amount) * 100
+            time_spent = segment.turns + Drone.calculate_distance(segment.start, paths[id][-1].end)
+            # Temps utilisé rapporté au temps maximal
+            time_proportion = (time_spent / longest_time) * 100
+            coefficient = RATIO_ORDER_COMPLETION * order_completion + (1 - RATIO_ORDER_COMPLETION) * time_proportion
+            
+            if coefficient < next_segment[1]:
+                next_segment = (count, coefficient)
+                
+        segment = segments[next_segment[0]]
         # On retire le segment de la liste des segments à attribuer
         segments.remove(segment)
         # Ajout du segment à la liste des segments visités par le drone
         paths[id].append(segment)
         # Ajout du temps de déplacement vers le segment et celui du segment
         lenght_paths[id] += segment.turns + Drone.calculate_distance(segment.start, paths[id][-1].end)
-
-        # Mise à jour de la liste des ongoing orders
-        # Si l'order n'est pas en cours
-        if segment.order_id in ongoing_orders:
-            if segment.order_id not in [segment.order_id for segment in segments]:
-                # Si il n'y a plus de segments pour l'order en question, on la retire
-                ongoing_orders.remove(segment.order_id)
-        else:
-            if segment.order_id in [segment.order_id for segment in segments]:
-                # Si l'order n'est pas dans ongoing et qu'il reste des actions à faire, la rajouter
-                ongoing_orders.append(segment.order_id)
 
     # Quand tous les segments ont été attribués
     # Ajout de toutes les actions à la liste des solutions
@@ -448,8 +460,8 @@ def solve(challenge):
 
     solvers['stack_segments'] = stack_segments(copy.deepcopy(challenge))
     solvers['naive'] = naive(copy.deepcopy(challenge))
-    solvers['main_warehouse_layers'] = main_warehouse_layers(copy.deepcopy(challenge))
     solvers['workload_repartition'] = workload_repartition(copy.deepcopy(challenge))
+    solvers['main_warehouse_layers_stack_segments'] = main_warehouse_layers(copy.deepcopy(challenge))
 
     solutions = {}
     
