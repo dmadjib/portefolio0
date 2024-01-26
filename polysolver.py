@@ -1,476 +1,574 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""Module de résolution du projet Poly#.
 """
-from utils.Drone import Drone
-from utils.Order import Order
+@title : Polysolver
+@description : Solve in different way the PolyHash problem, as well as calculating the score
+@author : El ARAJNA Lina , FAKHFAKH Ahmed , LALANNE-TISNE Nino, Madjibaye Donatien
+@date : Last Modification : 25/01/2024
+"""
+
+from utils.Challenge import Challenge
 from utils.Warehouse import Warehouse
+from utils.Order import Order
+from utils.Drone import Drone
+from utils.types import Action
 from utils.Segment import Segment
-import math
-import copy
- 
-def save_solution (file_name, tab_solution): 
-    with open(f'{file_name}.txt', 'w') as outfile :
-        outfile.write(str(len(tab_solution)) + '\n')
-        for i in range(len(tab_solution)) : 
-            for j in range(len(tab_solution[i])) :
-                outfile.write(str(tab_solution[i][j]) + ' ')
+from math import sqrt, ceil
+from copy import deepcopy
+
+
+def save_solution(file_name: str, solution: list[Action]) -> None:
+    """
+        Saves the given list of actions in the given file location
+    """
+    with open(f'{file_name}.txt', 'w') as outfile:
+        outfile.write(str(len(solution)) + '\n')
+        for i in range(len(solution)):
+            for j in range(len(solution[i])):
+                outfile.write(str(solution[i][j]) + ' ')
             outfile.write('\n')
 
-def score_solution(solution, challenge):
-    # Initialisation du score
+
+def score_solution(solution: list[Action], challenge: Challenge) -> int:
+    """
+        Calculates the score for a given solution
+        :return:        The score of the solution
+    """
     score = 0
 
-    # Récupèrer une order à partir de son ID
-    orders = {order.id:order for order in challenge.orders}
-    
-    # Sauvegarde des orders complétées pour empêcher de livrer dans une order complétée
+    # Fetches an order from its ID
+    orders = {order.id: order for order in challenge.orders}
+
+    # Saves the completed orders, so they don't count if there is a delivery afterward
     completed_orders = []
 
-    # Enregistrement des tours où il y a eu une action de livraison
+    # Saves the turns where there have been a delivery at a specific order
     order_turns = {}
 
     for drone in challenge.drones:
-        # On ne garde que les opérations du drone en question
-        moves = list(filter(lambda move: move[0] == drone.id, solution))
+        # We are only looking at the moves of the given drone
+        moves = list(filter(lambda m: m[0] == drone.id, solution))
 
         turns = 0
 
-        # Position initiale
+        # Initial position
         pos = challenge.warehouses[0].location
 
+        # For every action
         for move in moves:
+            # If the action is on a warehouse
             if move[1] in {'L', 'U'}:
-                # Si l'opération est une charge, alors le drone va vers un warehouse
-                next_pos = list(filter(lambda w:w.id == move[2], challenge.warehouses))[0].location
+                # If the next location is a warehouse
+                next_pos = list(filter(lambda w: w.id == move[2], challenge.warehouses))[0].location
+                # Distance flown plus 1 turn for the action itself
+                turns += Challenge.calculate_distance(pos, next_pos) + 1
 
-                # Distance parcourue pour aller effectuer l'action ajoutées aux tours + 1 tour pour charger / décharger
-                turns += Drone.calculate_distance(pos, next_pos) + 1
-
+            # If the action is on an order
             elif move[1] == 'D':
-                # Si l'opération est un dépôt, alors le drone va vers une order
+                # If the action is on an order
                 next_pos = orders[move[2]].location
-                
-                # Distance parcourue pour aller effectuer l'action ajoutées aux tours
-                turns += Drone.calculate_distance(pos, next_pos)
+                # Distance flown
+                turns += Challenge.calculate_distance(pos, next_pos)
 
-                # Insérer la livraison dans la liste des actions de livraisons
+                # Insert the delivery action in the delivery turns
                 if move[2] not in completed_orders:
                     if move[2] not in order_turns.keys():
                         order_turns[move[2]] = [turns]
                     else:
                         order_turns[move[2]].append(turns)
 
-                # Retrait de la liste des commandes des items livrés
+                # Removing the given products from the order list
                 orders[move[2]].products[move[3]] -= move[4]
 
-                # Ajout du tour de la livraison
+                # Adding the delivery turn
                 turns += 1
 
-                # Si tous les produits ont été livrés (pas forcément dans le bon ordre)
+                # If every product has been delivered
                 if move[2] not in completed_orders and orders[move[2]].is_completed():
                     completed_orders.append(move[2])
 
+            # If the action is just waiting
             elif move[1] == 'W':
                 turns += move[2]
-                break
+                continue
 
-            # Mise à jour de la localisation du drone
+            # If there is a problem with the given action
+            else:
+                continue
+
+            # Updating the new drone location
             pos = next_pos
-    
+
+    # Calculating the score for each completed order
     for order, turns in order_turns.items():
         if orders[order].is_completed():
-            score += math.ceil(((challenge.deadline - max(turns)) / challenge.deadline) * 100)
-    
+            score += ceil(((challenge.deadline - max(turns)) / challenge.deadline) * 100)
+
     return score
 
-def naive(challenge):
+
+def path_for_order(challenge: Challenge, warehouses: list[Warehouse], order: Order, drone: Drone) -> list[Action]:
+    """
+        Reused algorithm, used for calculating the most optimal path for a drone in order to deliver a given order
+        depending on the challenge and the sorted list of warehouses
+    """
+    # The list of actions for this order
+    actions = []
+
+    # Iterator for the warehouses
+    warehouse_count = 0
+
+    while not order.is_completed():
+        # While the drone is not full and has not everything needed
+        # (If the iterator reaches the last warehouse, the drone stops looking for loading too)
+        while drone.current_load < challenge.max_payload and not drone.has_remaining(order):
+            warehouse = warehouses[warehouse_count]
+
+            # For each needed product
+            for product, amount in order.products.items():
+                # If the drone needs it and the warehouse has some
+                if not drone.has_product_asked(product, amount) and warehouse.products[product] > 0:
+                    # How many items will be taken
+                    to_load = min(warehouse.products[product], amount)
+
+                    # Loads as much as possible the drone with the given product
+                    for _ in range(to_load):
+                        if drone.can_load(product, 1, challenge.product_weights):
+                            drone.load(warehouse, product, 1, challenge.product_weights, actions)
+
+            warehouse_count += 1
+
+            # If there is no warehouse left to visit, then the drone starts goes deliver
+            if warehouse_count == len(warehouses):
+                warehouse_count = 0
+                break
+
+        # For each product the drone is carrying
+        for product, quantity in drone.products.items():
+            # If the order needs it
+            if product in order.products and order.products[product] > 0 and quantity > 0:
+                # Calculating the amount to deliver
+                to_deliver = quantity if order.products[product] >= quantity else order.products[product]
+                # Deliver action
+                drone.deliver(order, product, to_deliver, challenge.product_weights, actions)
+
+    # Returns the actions for a given order
+    return actions
+
+
+def naive(challenge: Challenge) -> list[Action]:
+    """
+        Naive algorithm. Every order has one drone, every drone is doing the same amount of order.
+        For every order, the drone is taking as much as he can at the closest warehouses from the order.
+        :return:        The solutions generated by the algorithm
+    """
     solutions = []
 
+    # For every order
     for count, order in enumerate(challenge.orders):
-        drone = challenge.drones[count%len(challenge.drones)]
+        # Choosing the drone for the order (id of the order % the number of drones)
+        drone = challenge.drones[count % len(challenge.drones)]
 
-        warehouses = sorted(challenge.warehouses, key=lambda w:Drone.calculate_distance(w.location, drone.location))
+        # The list of warehouses
+        warehouses = sorted(
+            challenge.warehouses,
+            key=lambda w: Challenge.calculate_distance(w.location, drone.location)
+        )
 
-        warehouse_count = 0
+        # Gets the actions for this order
+        order_actions = path_for_order(challenge, warehouses, order, drone)
 
-        while not order.is_completed():
-            while drone.current_load < challenge.max_payload and not drone.has_remaining(order):
-                warehouse = warehouses[warehouse_count]
-
-                for product, amount in order.products.items():
-                    if not drone.has_product_asked(product, amount) and warehouse.products[product] > 0:
-                        to_load = amount if warehouse.products[product] >= amount else warehouse.products[product]
-
-                        for _ in range(to_load):
-                            if drone.can_load(product, 1, challenge.product_weights):
-                                drone.load(warehouse, product, 1, challenge.product_weights, solutions)
-
-                warehouse_count += 1
-
-                if warehouse_count == len(warehouses):
-                    warehouse_count = 0
-                    break
-
-            for product, quantity in drone.products.items():
-                if product in order.products and order.products[product] > 0:
-                    to_deliver = quantity if order.products[product] >= quantity else order.products[product]
-                    drone.deliver(order, product, to_deliver, challenge.product_weights, solutions)
+        for action in order_actions:
+            solutions.append(action)
 
     return solutions
 
-def stack_segments(challenge):
+
+def stack_segments(challenge: Challenge) -> list[Action]:
+    """
+        Splitting in a smart way the orders among the drones.
+        Every order is represented by a "segment", which the most optimised list of actions to unroll in order to
+        deliver the order as soon as possible.
+        Then, while there are still orders to process, the first drone which has nothing to do will choose the order
+        which will take the less time to deliver.
+
+        AT THIS DAY : One of the simplest algorithms, but the best one so far.
+
+        :return:        The solutions generated by the algorithm
+    """
     solutions = []
 
-    # Liste des segments
+    # List of segments
     segments = []
 
-    # Construction d'un segment pour chaque order
+    # Fake drone used for the generation of each segment
+    drone = challenge.drones[0]
+
+    # Generating a segment for each order
     for order in challenge.orders:
-        # Liste des ID des warhouses trié du plus proche au plus éloigné
-        warehouses = list(map(lambda w: w.id, sorted(challenge.warehouses, key=lambda w:Drone.calculate_distance(w.location, order.location))))
+        # Sorted warehouses depending on their distance from the order
+        warehouses = sorted(
+            challenge.warehouses,
+            key=lambda w: Challenge.calculate_distance(w.location, order.location)
+        )
 
-        warehouse_count = 0
+        # Gets the actions for this order
+        actions = path_for_order(challenge, warehouses, order, drone)
 
-        # Liste des actions à réaliser pour ce segment
-        actions = []
+        # When the order is completed, all its actions are added to the segment
+        segments.append(Segment(challenge.get_location(actions[0]), order.location, challenge, actions, order.id))
 
-        # Faux drone utilisé pour tracer l'itinéraire à réaliser pour une order
-        drone = challenge.drones[0]
+    # Logs of every segment accomplished by each drone
+    paths = {drone.id: [] for drone in challenge.drones}
+    # Saving the amount of turns used for each drone
+    # Can be calculated from 'paths', but this dict is here for saving time and memory
+    length_paths = {drone.id: 0 for drone in challenge.drones}
+    # Choosing the smallest segments for the first iteration of the drones
+    simplest_segments = sorted(segments, key=lambda s: s.turns, reverse=True)
 
-        while not order.is_completed():
-            # Tant que le drone n'est pas plein ou n'a pas tout
-            while drone.current_load < challenge.max_payload and not drone.has_remaining(order):
-                # ID du warehouse suivant à vérifier
-                warehouse = warehouses[warehouse_count]
-
-                # Pour chaque produit
-                for product, amount in order.products.items():
-                    # Si le drone n'a pas le produit demandé et que le warehouse l'a
-                    if not drone.has_product_asked(product, amount) and challenge.warehouses[warehouse].products[product] > 0:
-                        # Calcul de la quantité à charger
-                        if challenge.warehouses[warehouse].products[product] >= amount:
-                            to_load = amount
-                        else:
-                            to_load = challenge.warehouses[warehouse].products[product]
-
-                        # Chargement de ce qui est possible
-                        for _ in range(to_load):
-                            if drone.can_load(product, 1, challenge.product_weights):
-                                drone.load(challenge.warehouses[warehouse], product, 1, challenge.product_weights, actions)
-
-
-                # Warehouse suivant
-                warehouse_count += 1
-
-                if warehouse_count == len(warehouses):
-                    warehouse_count = 0
-                    break
-
-            # Livraison de chaque item à l'order
-            for product, quantity in drone.products.items():
-                if product in order.products and order.products[product] > 0 and quantity > 0:
-                    to_deliver = quantity if order.products[product] >= quantity else order.products[product]
-                    drone.deliver(order, product, to_deliver, challenge.product_weights, actions)
-
-        # Quand l'order est complétée, son chemin (actions) est ajouté en tant que nouveau segment
-        segments.append(Segment(Segment.get_location(actions[0], challenge), order.location, challenge, actions, order.id))
-
-    # Trace du parcours de chaque drone
-    paths = {drone.id:[] for drone in challenge.drones}
-    # Sauvegarde du temps pris pour toutes les commandes d'un drone
-    # Sert à ne pas recalculer à chaque itération
-    lenght_paths = {drone.id:0 for drone in challenge.drones}
-    # On choisi les NB DRONES segments les plus simples à finir
-    simplest_segments = sorted(segments, key=lambda s:s.turns, reverse=True)
-
+    # For each drone
     for i in range(len(challenge.drones)):
-        segment = simplest_segments.pop()
-        segments.remove(segment)
-        paths[i].append(segment)
-        lenght_paths[i] += segment.turns
+        # In case there are more drones than there are orders
+        if len(simplest_segments) > 0:
+            # Taking the simplest order
+            segment = simplest_segments.pop()
+            segments.remove(segment)
+            # Adding it to the drone order list
+            paths[i].append(segment)
+            length_paths[i] += segment.turns
 
-    # On cherche à attribuer tous les segments à des drones
+    # Where now need to split the segments among the drones
     while len(segments) > 0:
-        # Sélection du drone qui est le moins occupé
-        id = min(lenght_paths, key=lenght_paths.get)
+        # Selecting the drone which will finish his deliveries the earliest at this point
+        drone_id = min(length_paths, key=length_paths.get)
 
-        # Choix du segment qui dure le moins longtemps
-        segment = min(segments, key=lambda segment:segment.turns)
-        # On retire le segment de la liste des segments à attribuer
+        # Choosing the segment which is the smallest (the one taking the less time for delivery)
+        segment = min(segments, key=lambda s: s.turns)
+        # Removing the segment from the list
         segments.remove(segment)
-        # Ajout du segment à la liste des segments visités par le drone
-        paths[id].append(segment)
-        # Ajout du temps de déplacement vers le segment et celui du segment
-        lenght_paths[id] += segment.turns + Drone.calculate_distance(segment.start, paths[id][-1].end)
+        # Adding the segment to the drone order list
+        paths[drone_id].append(segment)
+        length_paths[drone_id] += segment.turns + Challenge.calculate_distance(segment.start, paths[drone_id][-1].end)
 
-    # Quand tous les segments ont été attribués
-    # Ajout de toutes les actions à la liste des solutions
+    # When all the segments are attributed to a drone
+    # Adding all the actions to the final list
 
-    # Pour chaque drone
-    for id, segments in paths.items():
-        # Pour chaque segment
+    for drone_id, segments in paths.items():
         for segment in segments:
-            # Pour chaque action
             for action in segment.actions:
-                # Ajout dans les solutions en renseignant l'ID du drone
-                solutions.append([id, action[1], action[2], action[3], action[4]])
-    
+                # Adding the actions with the real drone ID
+                solutions.append([drone_id, action[1], action[2], action[3], action[4]])
+
     return solutions
 
-def diviser_tableau(tableau, n):
-    taille_tableau = len(tableau)
-    taille_sous_tableau = taille_tableau // n
-    tableaux_resultats = []
 
-    # Diviser le tableau en n parties
-    for i in range(n):
-        debut = i * taille_sous_tableau
-        fin = (i + 1) * taille_sous_tableau
+def split_orders(orders: list[Order], nb_zones: int) -> list[list[Order]]:
+    """
+        Splitting in "nb_zones" lists the given list of orders.
+        Used in the "layers" algorithm.
+        :return:        A list of the lists of split orders
+    """
+    sub_list_length = len(orders) // nb_zones
+    results = []
 
-        # Pour le dernier morceau, inclure les éléments restants
-        if i == n - 1:
-            fin = taille_tableau
+    # Divide the list in nb_zones lists
+    for i in range(nb_zones):
+        first = i * sub_list_length
+        last = (i + 1) * sub_list_length
 
-        sous_tableau = tableau[debut:fin]
-        tableaux_resultats.append(sous_tableau)
+        # For the last list, just adding the remaining orders
+        if i == nb_zones - 1:
+            last = len(orders)
 
-    return tableaux_resultats
+        results.append(orders[first:last])
 
-def main_warehouse_layers(challenge):
+    return results
+
+
+def layers(challenge: Challenge) -> list[Action]:
+    """
+        Algorithm splitting the orders in a certain amount of zones, which are taking cared of one by one, with all
+        the drones. The order of the zones is determined by the score each one of them is creating.
+        It is using one of the other algorithms for completing a zone.
+        :return:        The solutions generated by the algorithm
+    """
     solutions = []
 
     NB_ZONES = 3
 
-    # Warehouse le plus au centre
-    sorted_orders = sorted(challenge.orders, key=lambda o:Drone.calculate_distance(o.location, (challenge.rows_count / 2, challenge.columns_count / 2)))
-    order_zones = diviser_tableau(sorted_orders,NB_ZONES)
-    future_order_zones = copy.deepcopy(order_zones)
-    
+    # Sorting the orders depending on their distances from the center of the board
+    sorted_orders = sorted(
+        challenge.orders,
+        key=lambda o: Challenge.calculate_distance(
+            o.location,
+            (challenge.rows_count // 2, challenge.columns_count // 2)
+        )
+    )
+
+    # Splitting the orders
+    order_zones = split_orders(sorted_orders, NB_ZONES)
+    # Saving the challenge for later (the algorithm will empty the orders)
+    future_order_zones = deepcopy(order_zones)
+
     zones_scores = []
 
-    for i,zone in enumerate(order_zones):
-        new_challenge = copy.deepcopy(challenge)
+    # For each zone
+    for i, zone in enumerate(order_zones):
+        # Saving a new instance of the challenge, so it won't be emptied for the next zones
+        new_challenge = deepcopy(challenge)
         new_challenge.orders = zone
-        score_challenge = copy.deepcopy(new_challenge)
-        zones_scores.append((i, score_solution(stack_segments(new_challenge), score_challenge)))
+        # Also saving another instance of challenge for the scoring part
+        score_challenge = deepcopy(new_challenge)
+        # Associating the score of the zone with its id
+        zones_scores.append((i, score_solution(workload_repartition(new_challenge), score_challenge)))
+
+    # Sorting the zones depending on the score they are each returning
     sorted_zones_scores = sorted(zones_scores, key=lambda x: x[1], reverse=True)
-    
-    for id, score in sorted_zones_scores:
-        challenge.orders = future_order_zones[id]
+
+    # Running the algorithm one more time with all the sorted zones together
+    for zone_id, score in sorted_zones_scores:
+        challenge.orders = future_order_zones[zone_id]
         local_solutions = workload_repartition(challenge)
         for solution in local_solutions:
             solutions.append(solution)
 
     return solutions
 
-def workload_repartition(challenge):
+
+def workload_repartition(challenge: Challenge) -> list[Action]:
+    """
+        A new version of the stack segments algorithm. Here, it is not one segment per order, but one segment per
+        delivery operation (one warehouse and one order to deliver). All these small operations are dispatched among
+        the drones equally. A segment may go to multiple warehouses if they are not too far away.
+        :return:        The solutions generated by the algorithm
+    """
     solutions = []
 
-    # Si passer par un warehouse au passage pour aider l'order est RATIO fois plus court, alors le détour en vaut la peine
+    # Used to see if going to more warehouses is a big detour
     LONGER_THAN_ORDER_RATIO = 3
-    # Pourcentage du coefficient des orders qui représente la complétion d'une order
+    # Percentage of the importance of "percentage of completion" against "length of the segment" while trying to choose
+    # a new segment to complete
     RATIO_ORDER_COMPLETION = 0.76
 
-    # Liste des segments
+    # List of segments
     segments = []
 
-    # Accéder simplement à une order par son ID
-    orders_by_id = {order.id:i for i, order in enumerate(challenge.orders)}
+    # Fetches an order from its ID
+    orders_by_id = {order.id: i for i, order in enumerate(challenge.orders)}
 
-    # Construction de segments pour chaque order
+    # Generating a segment for each order
     for order in challenge.orders:
-        # Liste des ID des warhouses trié du plus proche au plus éloigné
-        warehouses = list(map(lambda w: w.id, sorted(challenge.warehouses, key=lambda w:Drone.calculate_distance(w.location, order.location))))
+        # Sorting the warehouses depending on their distance with the order
+        warehouses = sorted(
+            challenge.warehouses,
+            key=lambda w: Challenge.calculate_distance(w.location, order.location)
+        )
 
+        # Warehouse iterator
         warehouse_count = 0
 
-        # Produits à prendre dans chaque warehouse
+        # Products available for the order in each warehouse
         workload = {}
 
-        # Produits à trouver
+        # Products to find for the order
         products_remaining = order.products
 
-        # Tant que tous les produits n'ont pas été trouvés
+        # While there are some products missing
         while set(products_remaining.values()) != {0}:
-            # Passage de warehouse en warehouse
+            # Looping on the warehouses
             warehouse = warehouses[warehouse_count]
-            
-            # Pour chaque produit
-            for product, amount in order.products.items():
-                # Si la quantité de produit à trouver n'est pas atteinte et que le warehouse en a
-                if products_remaining[product] > 0 and challenge.warehouses[warehouse].products[product] > 0:
-                    # Calcul de la quantité à charger
-                    if challenge.warehouses[warehouse].products[product] >= amount:
-                        load = amount
-                    else:
-                        load = challenge.warehouses[warehouse].products[product]
 
-                    # Renseignement des choses à prendre par warehouse
+            # For each product
+            for product, amount in order.products.items():
+                # If the given products are still missing, and the warehouse has some
+                if products_remaining[product] > 0 and warehouse.products[product] > 0:
+                    # Choosing how many to pick up
+                    load = min(warehouse.products[product], amount)
+
+                    # Filling the list with products available in the warehouse
                     if warehouse not in workload.keys():
-                        workload[warehouse] = {product:load}
+                        workload[warehouse] = {product: load}
                     else:
                         workload[warehouse][product] = load
 
-                    # Mise à jour de ce qu'il reste à trouver
+                    # Updating the amount of products to find for the order
                     products_remaining[product] -= load
 
-            # Warehouse suivant
+            # Next warehouse
             warehouse_count += 1
 
-        # Tant qu'il reste des choses à attribuer à des drones
+        # While there are things to load in the drones for the order
         while not all(all(q == 0 for q in w.values()) for w in workload.values()):
-            # Liste des actions pour le segment
+            # Listing the actions for a specific segment
             actions = []
 
-            # Place restante dans le drone
+            # Remaining load in the drone
             remaining_load = challenge.max_payload
 
-            # Pour chaque warehouse
+            # For each warehouses
             for warehouse, products in workload.items():
-                # Calcul pour voir si le détour vaut le coup
-                # Condition pour éviter les problèmes
-                if len(actions) > 0:
-                    d_warehouse = Drone.calculate_distance(Segment.get_location(actions[-1], challenge), challenge.warehouses[warehouse].location)
-                    d_warehouse_to_order = Drone.calculate_distance(order.location, challenge.warehouses[warehouse].location)
-                    d_order_from_current = Drone.calculate_distance(Segment.get_location(actions[-1], challenge), order.location)
-                    
-                # Si le drone est à vide ou
-                if (len(actions) == 0 or (
-                # Si le drone a déjà des produits, mais que le warehouse n'est pas très loin
-                    len(actions) > 0 and d_warehouse + d_warehouse_to_order <= d_order_from_current * LONGER_THAN_ORDER_RATIO
-                )):
-                    # Pour chaque produit dans le warehouse
+                # By default, the drone won't visit the warehouse
+                visit_warehouse = False
+
+                # If the drone is empty, then it can visit the warehouse
+                if len(actions) == 0:
+                    visit_warehouse = True
+                # If the drone is not empty (so it already went to a warehouse)
+                elif len(actions) > 0:
+                    # Calculating the distances between
+                    # The warehouse where the drone may go and the order (a longer path than the one he is currently
+                    # using from the last warehouse he visited)
+                    d_warehouse = Challenge.calculate_distance(challenge.get_location(actions[-1]), warehouse.location)
+                    d_warehouse_to_order = Challenge.calculate_distance(order.location, warehouse.location)
+                    # And between its last warehouse and the order (the current planned path)
+                    d_order_current = Challenge.calculate_distance(challenge.get_location(actions[-1]), order.location)
+
+                    # If doing a detour at this new warehouse is less than RATIO times longer than the current path
+                    if d_warehouse + d_warehouse_to_order <= d_order_current * LONGER_THAN_ORDER_RATIO:
+                        # Then the drone may visit the warehouse
+                        visit_warehouse = True
+
+                # If the drone can visit the warehouse
+                if visit_warehouse:
+                    # For each product in the warehouse
                     for product, quantity in products.items():
-                        # Si le produit a été vidé du warehouse
+                        # If the current product is not here, then continue
                         if quantity == 0:
                             continue
 
-                        # Quantité maximale chargeable du produit
-                        can_load = (remaining_load // int(challenge.product_weights[product]))
-                        
-                        # Si rien ne peut être chargé
+                        # Maximum possible load for the drone
+                        can_load = (remaining_load // challenge.product_weights[product])
+
+                        # If the product cannot be loaded at all
                         if can_load == 0:
                             continue
 
-                        # Charge la quantité nécessaire
+                        # Loading the minimum quantity between what the warehouse has and what the drone can load
                         load = min(quantity, can_load)
-                        
-                        # Ajout du chargement dans la liste des actions du segment
-                        # Faux id de drone
-                        actions.append([99999, 'L', warehouse, product, load])
-                        # Retrait des produits des produits à envoyer vers l'order
+
+                        # Adding the action to the actions of this segment
+                        # False drone ID, which will be changed at the end
+                        actions.append([99999, 'L', warehouse.id, product, load])
+                        # Removing the products from the needed workload
                         workload[warehouse][product] -= load
-                        # Retrait des produits des warehouses de challenge
-                        challenge.warehouses[warehouse].products[product] -= load
-                        # Renseignement du nouveau poids
-                        remaining_load -= int(challenge.product_weights[product]) * load
-            
-            # Quand le drone s'est chargé au maximum dans des warehouses pas trop éloignés de sa route entre le
-            # premier warehouse et l'order
-            
-            # Compte de chaque produit à liver en quelle quantité
+                        # Removing the products from the warehouse
+                        warehouse.products[product] -= load
+                        # Updating the remaining space in the drone
+                        remaining_load -= challenge.product_weights[product] * load
+
+            # When the drone loaded up himself with what he can, among one or more warehouses
+
+            # Grouping together the products for a faster delivery
             product_list = {}
 
             for action in actions:
-                if action[3] not in product_list.keys():
-                    product_list[action[3]] = action[4]
-                else:
-                    product_list[action[3]] += action[4]
-            
-            # Ajout des actions de livraison
+                product_list[action[3]] = product_list.get(action[3], 0) + action[4]
+
+            # Adding the delivery actions
             for product, quantity in product_list.items():
-                # Faux id de drone
                 actions.append([99999, 'D', order.id, product, quantity])
-            
-            # Quand l'order est complétée, les actions sont converties en nouveau segment
-            segments.append(Segment(Segment.get_location(actions[0], challenge), order.location, challenge, actions, order.id))
 
-    # Trace du parcours de chaque drone
-    paths = {drone.id:[] for drone in challenge.drones}
-    # Sauvegarde du temps pris pour toutes les commandes d'un drone
-    # Sert à ne pas recalculer à chaque itération
-    lenght_paths = {drone.id:0 for drone in challenge.drones}
-    
-    # Nombre de segments par orders
-    segments_per_orders = {id:len(list(filter(lambda s:s.order_id == id, segments))) for id in orders_by_id.keys()}
-    
-    # On choisi les NB DRONES segments les plus simples à finir
-    simplest_segments = sorted(segments, key=lambda s:segments_per_orders[s.order_id], reverse=True)
+            # When the delivery is completed, a new segment is created with the given actions
+            segments.append(Segment(challenge.get_location(actions[0]), order.location, challenge, actions, order.id))
 
+    # Logs of every segment accomplished by each drone
+    paths = {drone.id: [] for drone in challenge.drones}
+    # Saving the amount of turns used for each drone
+    # Can be calculated from 'paths', but this dict is here for saving time and memory
+    length_paths = {drone.id: 0 for drone in challenge.drones}
+
+    # Counting the amount of segments per order (used to get the easiest orders to complete)
+    segments_per_orders = {
+        order_id: len(list(filter(lambda s: s.order_id == id, segments))) for order_id in orders_by_id.keys()
+    }
+
+    # Choosing the easiest segments for starting the drones
+    simplest_segments = sorted(segments, key=lambda s: segments_per_orders[s.order_id], reverse=True)
+
+    # For each drone
     for i in range(len(challenge.drones)):
+        # Security in case there are fewer orders than drones
         if len(simplest_segments) > 0:
+            # Removing the last (easiest) segment from the list
             segment = simplest_segments.pop()
             segments.remove(segment)
+            # Adding it to the logs of the drones
             paths[i].append(segment)
-            lenght_paths[i] += segment.turns
+            length_paths[i] += segment.turns
 
-    # Segment qui prend le plus de temps + plus longue distance possiblement parcourable
+    # Longest segment + the longest possible travel distance (used for comparing the length of the segments)
     if len(segments) > 0:
-        longest_time = sorted(segments, key=lambda s:s.turns)[-1].turns + math.sqrt(challenge.rows_count ** 2 + challenge.columns_count ** 2)
+        longest_time = (
+                sorted(segments, key=lambda s: s.turns)[-1].turns +
+                sqrt(challenge.rows_count ** 2 + challenge.columns_count ** 2)
+        )
 
-    # On cherche à attribuer tous les segments à des drones
-    while len(segments) > 0:
-        # Sélection du drone qui est le moins occupé
-        id = min(lenght_paths, key=lenght_paths.get)
+        # Where now need to split the segments among the drones
+        while len(segments) > 0:
+            # Selecting the drone which will finish his deliveries the earliest at this point
+            drone_id = min(length_paths, key=length_paths.get)
 
-        # Choix du segment en fonction de plusieurs facteurs
-        # Si le segment appartient à une order qui se termine bientôt
-        # Si le drone terminera le segment dans un long moment (temps de vol + déroulé du segment)
-        # Score de 0 à 100
-        next_segment = (-1, 100)
+            # Choosing the next segment depending on two factors
+            # If the segment is in an order which will finish soon (high percentage of completion)
+            # If the drone will take a lot of time to realise the segment
+            # Scoring from 0 to 100
+            # ID of the segment, score
+            next_segment = (-1, 100)
 
-        for count, segment in enumerate(segments):
-            order = challenge.orders[orders_by_id[segment.order_id]]
-            # Pourcentage de complétion de la commande associée
-            order_completion = ((order.initial_amount - sum(order.products)) / order.initial_amount) * 100
-            time_spent = segment.turns + Drone.calculate_distance(segment.start, paths[id][-1].end)
-            # Temps utilisé rapporté au temps maximal
-            time_proportion = (time_spent / longest_time) * 100
-            coefficient = RATIO_ORDER_COMPLETION * order_completion + (1 - RATIO_ORDER_COMPLETION) * time_proportion
-            
-            if coefficient < next_segment[1]:
-                next_segment = (count, coefficient)
-                
-        segment = segments[next_segment[0]]
-        # On retire le segment de la liste des segments à attribuer
-        segments.remove(segment)
-        # Ajout du segment à la liste des segments visités par le drone
-        paths[id].append(segment)
-        # Ajout du temps de déplacement vers le segment et celui du segment
-        lenght_paths[id] += segment.turns + Drone.calculate_distance(segment.start, paths[id][-1].end)
+            # For each segment
+            for count, segment in enumerate(segments):
+                # Fetching the linked order
+                order = challenge.orders[orders_by_id[segment.order_id]]
+                # Completion percentage
+                order_completion = ((order.initial_amount - sum(order.products)) / order.initial_amount) * 100
+                time_spent = segment.turns + Challenge.calculate_distance(segment.start, paths[drone_id][-1].end)
+                # Percentage of maximal time used
+                time_proportion = (time_spent / longest_time) * 100
+                coefficient = RATIO_ORDER_COMPLETION * order_completion + (1 - RATIO_ORDER_COMPLETION) * time_proportion
 
-    # Quand tous les segments ont été attribués
-    # Ajout de toutes les actions à la liste des solutions
+                # Choosing the best segment depending on the coefficient
+                if coefficient < next_segment[1]:
+                    next_segment = (count, coefficient)
 
-    # Pour chaque drone
-    for id, segments in paths.items():
-        # Pour chaque segment
+            # Fetching the best segment
+            segment = segments[next_segment[0]]
+            # Removing it from the segment list
+            segments.remove(segment)
+            # Adding the segment to the drone logs
+            paths[drone_id].append(segment)
+            length_paths[drone_id] += (
+                    segment.turns +
+                    Challenge.calculate_distance(segment.start, paths[drone_id][-1].end)
+            )
+
+    # When all the segments are attributed to a drone
+    # Adding all the actions to the final list
+
+    for drone_id, segments in paths.items():
         for segment in segments:
-            # Pour chaque action
             for action in segment.actions:
-                # Ajout dans les solutions en renseignant l'ID du drone
-                solutions.append([id, action[1], action[2], action[3], action[4]])
+                # Adding the action with the real drone ID
+                solutions.append([drone_id, action[1], action[2], action[3], action[4]])
 
     return solutions
 
-def solve(challenge):
-    solvers = {}
 
-    solvers['stack_segments'] = stack_segments(copy.deepcopy(challenge))
-    solvers['naive'] = naive(copy.deepcopy(challenge))
-    solvers['workload_repartition'] = workload_repartition(copy.deepcopy(challenge))
-    solvers['main_warehouse_layers_stack_segments'] = main_warehouse_layers(copy.deepcopy(challenge))
+def solve(challenge):
+    # Listing all the algorithms
+    # As 'stack segment' is for now the best algorithm, the other ones are commented for performances concerns
+    solvers = {
+        'stack_segments': stack_segments(deepcopy(challenge)),
+        # 'naive': naive(deepcopy(challenge)),
+        # 'workload_repartition': workload_repartition(deepcopy(challenge)),
+        # 'layers_workload_repartition': layers(deepcopy(challenge))
+    }
 
     solutions = {}
-    
+
     for algo, solution in solvers.items():
-        solutions[algo] = score_solution(solvers[algo], copy.deepcopy(challenge))
+        solutions[algo] = score_solution(solvers[algo], deepcopy(challenge))
         print(f'Solution \'{algo}\' : {solutions[algo]}')
 
-    best_solution = max(solutions.keys(), key=lambda a:solutions[a])
+    best_solution = max(solutions.keys(), key=lambda a: solutions[a])
 
-    print('La meilleure solution est :', best_solution)
+    print('The best solution is :', best_solution)
 
     return solvers[best_solution]
