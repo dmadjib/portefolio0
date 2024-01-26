@@ -252,7 +252,7 @@ def product_by_product(challenge: Challenge) -> list[Action]:
                 # Removing the warehouse from the list of warehouses which have this product
                 if warehouse.products[product] == 0:
                     product_warehouses[product].remove(warehouse.id)
-            
+
                 warehouse_count += 1
 
             # Fetching all the orders which needs this product
