@@ -13,4 +13,4 @@ pep8:
   stage: test
   script:
     - pip install flake8
-    - flake8 . --count --show-source --statistics
+    - flake8 . --count --show-source --statistics --max-line-length=120

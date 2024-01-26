@@ -1,23 +1,24 @@
 """
 @title : Warehouse
-@description : Class defining what a warehouse is
+@description : Class defining what is a warehouse
 @author : El ARAJNA Lina , FAKHFAKH Ahmed , LALANNE-TISNE Nino, Madjibaye Donatien
-@date : Last Modification : 23/12/2023
+@date : Last Modification : 25/01/2024
 """
+
+from utils.types import Location
 
 
 class Warehouse:
     """
     Class is defined by:
         - id
-        - x
-        - y
+        - location
         - products
     """
 
     """ Constructor """
 
-    def __init__(self, id, x, y, products) -> None:
-        self.id = id
-        self.location = (x, y)
+    def __init__(self, warehouse_id: int, location: Location, products: list[int]):
+        self.id = warehouse_id
+        self.location = location
         self.products = products

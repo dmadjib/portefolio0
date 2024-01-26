@@ -1,30 +1,34 @@
 """
 @title : Order
-@description : Class defining what an order is
+@description : Class defining what is an order
 @author : El ARAJNA Lina , FAKHFAKH Ahmed , LALANNE-TISNE Nino, Madjibaye Donatien
-@date : Last Modification : 23/12/2023
+@date : Last Modification : 25/01/2024
 """
+
+from utils.types import Location
 
 
 class Order:
     """
+        An order is representing a need of specific products at a given location.
+
         Class is defined by:
             - id
-            - x
-            - y
+            - initial_amount
+            - location
+            - amount
             - products
         """
 
     """ Constructor """
 
-    def __init__(self, id, x, y, products) -> None:
-        self.id = id
+    def __init__(self, order_id: int, location: Location, products: list[int]):
+        self.id = order_id
         self.initial_amount = sum(products)
-        self.location = (x, y)
-        self.amount = len(products)
+        self.location = location
         self.products = {product_type: products.count(product_type) for product_type in products}
 
-    def is_completed(self):
+    def is_completed(self) -> bool:
         """
             - Check if an order is completed or not
             :return:        True if the drone is completed, False if it is not
