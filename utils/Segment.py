@@ -11,11 +11,15 @@ from utils.Challenge import Challenge
 
 class Segment:
     """
+        A segment is a group of actions that can be attributed on its own to a drone, so it doesn't have to calculate
+        and mesure all the possibilities among the actions.
+
         Class is defined by:
             - start
             - end
             - challenge
             - actions
+            - order_id
         """
 
     """ Constructor """
