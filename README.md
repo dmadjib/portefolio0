@@ -14,6 +14,28 @@ Le projet Polyhash 2023 vise à résoudre le problème de gestion et de coordina
 ### Tâches/Fonctions du Projet
 Nous avons défini les grandes tâches telles que le Brainstorming, la Modélisation, l'Implémentation, l'Optimisation, le Nettoyage du Code et la Documentation. Chacune de ces grandes tâches a été subdivisée en plusieurs petites tâches, que nous nous sommes réparti.
 
+### Jeux de données :
+Les points bleus representent les commandes et les points rouges représentent les entrepôts.
+#### Jeu A : a_example.in
+<p align="center">
+  <img src="data_visualisation/image1.webp" alt="a_example.in" style="width:300px;"/>
+</p>
+
+#### Jeu B : b_busy_day.in
+<p align="center">
+  <img src="data_visualisation/image2.webp" alt="b_busy_day.in" style="width:300px;"/>
+</p>
+
+#### Jeu C : c_redudancy.in
+<p align="center">
+  <img src="data_visualisation/image3.webp" alt="c_redudancy.in" style="width:300px;"/>
+</p>
+
+#### Jeu D : d_mother_of_all_warehouses.in
+<p align="center">
+  <img src="data_visualisation/image4.webp" alt="d_mother_of_all_warehouses.in" style="width:300px;"/>
+</p>
+
 ### Stratégies et Performances
 Différents algorithmes ont été testés, parmi lesquels :
 
@@ -114,6 +136,8 @@ Le projet comprend également plusieurs autres classes essentielles, notamment D
         python polyhash.py challenge.in sortie
 
     Assurez-vous de remplacer challenge.in par le chemin du fichier de défi que vous souhaitez résoudre, et sortie par le nom du fichier dans lequel vous souhaitez enregistrer la solution.
+
+**L'algorithme qui s'execute est celui de stack_segments, si vous voulez utilisez d'autres algorithmes il suffit de les décommenter**
 
 ## Bugs et Limitations Connus
 - Des erreurs de calcul peuvent survenir dans la fonction de scoring, entraînant des divergences avec les résultats du simulateur.
